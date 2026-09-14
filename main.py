@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 api_key = os.getenv("OPENWEATHER_API_KEY")
 
-city = "Miami,US"
+city = "Chicago,US"  # You can change this to any city you want to check
 url = "https://api.openweathermap.org/data/2.5/forecast"
 params = {
     "q": city,
