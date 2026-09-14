@@ -1,6 +1,7 @@
 import os
 import requests
 import streamlit as st
+from datetime import datetime
 from dotenv import load_dotenv
 from streamlit_searchbox import st_searchbox
 
@@ -57,17 +58,22 @@ selected_city = st_searchbox(
 if selected_city:
     lat = selected_city["lat"]
     lon = selected_city["lon"]
+
     url = "https://api.openweathermap.org/data/2.5/forecast"
     params = {"lat": lat, "lon": lon, "appid": api_key, "units": "imperial"}
     response = requests.get(url, params=params)
 
     if response.status_code == 200:
         data = response.json()
-        next_forecast = data["list"][0]
-        wind_speed = next_forecast["wind"]["speed"]
-        precipitation_chance = next_forecast.get("pop", 0) * 100
-        conditions = next_forecast["weather"][0]["description"]
-        visibility = next_forecast.get("visibility", 10000)
+        forecast_list = data["list"]
+
+        # --- Current conditions (first entry) ---
+        current = forecast_list[0]
+        wind_speed = current["wind"]["speed"]
+        conditions = current["weather"][0]["description"]
+        visibility = current.get("visibility", 10000)
+        precipitation_chance = current.get("pop", 0) * 100
+
         rating = assess_travel_disruption(wind_speed, precipitation_chance, visibility)
 
         st.subheader(f"Results for {selected_city['name']}")
@@ -84,5 +90,44 @@ if selected_city:
             st.warning(f"Travel Disruption Rating: {rating}")
         else:
             st.error(f"Travel Disruption Rating: {rating}")
+
+        # --- 5-Day Forecast Trend ---
+        # The API returns 3-hour entries (40 total, 8 per day).
+        # We'll pick one entry per day, close to midday, to represent each day.
+        st.subheader("5-Day Outlook")
+
+        daily_entries = {}
+        for entry in forecast_list:
+            dt = datetime.fromtimestamp(entry["dt"])
+            date_key = dt.date()
+            hour = dt.hour
+            # Prefer the entry closest to noon for each day
+            if date_key not in daily_entries or abs(hour - 12) < abs(daily_entries[date_key][0] - 12):
+                daily_entries[date_key] = (hour, entry)
+
+        sorted_days = sorted(daily_entries.items())[:5]
+        forecast_cols = st.columns(len(sorted_days))
+
+        for i, (date_key, (hour, entry)) in enumerate(sorted_days):
+            with forecast_cols[i]:
+                dt = datetime.fromtimestamp(entry["dt"])
+                day_label = dt.strftime("%a")
+                day_conditions = entry["weather"][0]["description"]
+                day_wind = entry["wind"]["speed"]
+                day_pop = entry.get("pop", 0) * 100
+                day_visibility = entry.get("visibility", 10000)
+
+                day_rating = assess_travel_disruption(day_wind, day_pop, day_visibility)
+
+                st.markdown(f"**{day_label}**")
+                st.caption(day_conditions.title())
+                st.write(f"💨 {day_wind:.0f} mph")
+                st.write(f"🌧️ {day_pop:.0f}%")
+                if day_rating == "Low":
+                    st.success(day_rating)
+                elif day_rating == "Moderate":
+                    st.warning(day_rating)
+                else:
+                    st.error(day_rating)
     else:
-        st.error("Could not fetch weather data.")
+        st.error("Could not fetch weather data. Check the city name and try again.")
