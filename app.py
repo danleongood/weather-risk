@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from streamlit_searchbox import st_searchbox
 
 load_dotenv()
-api_key = os.getenv("OPENWEATHER_API_KEY")
+api_key = st.secrets["OPENWEATHER_API_KEY"]
 
 st.set_page_config(page_title="Travel Disruption Checker", page_icon="✈️", layout="centered")
 
